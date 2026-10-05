@@ -1,0 +1,1488 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Zoo Explorer 3D</title>
+
+<script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Arial,sans-serif;background:#75c9ae}
+a-scene{position:fixed;inset:0}
+
+#hud{
+ position:fixed;z-index:100;right:15px;top:15px;width:285px;
+ color:#fff;background:rgba(12,35,30,.86);
+ border:1px solid rgba(255,255,255,.18);
+ border-radius:20px;padding:15px;
+ box-shadow:0 15px 45px #0008;
+ backdrop-filter:blur(12px)
+}
+#hud h1{margin:0 0 10px;color:#ffe269;font-size:21px}
+.stat{display:flex;justify-content:space-between;margin:6px 0;font-size:15px}
+.progress{height:7px;background:#ffffff25;border-radius:9px;overflow:hidden;margin:7px 0 12px}
+.progress div{height:100%;width:0;background:linear-gradient(90deg,#00e5ff,#66ff7a)}
+label{font-size:12px;color:#ddd;display:block;margin-top:7px}
+input[type=range]{width:100%;accent-color:#1596ff}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:10px}
+button{
+ border:0;border-radius:11px;padding:10px 5px;
+ background:#168467;color:#fff;font-weight:bold;
+ cursor:pointer;font-size:12px
+}
+button:hover{background:#20a878}
+button:active{transform:scale(.97)}
+
+#missions{
+ position:fixed;z-index:100;left:15px;top:15px;width:280px;
+ background:rgba(12,35,30,.86);color:white;
+ border-radius:20px;padding:15px;
+ box-shadow:0 15px 45px #0007;
+ backdrop-filter:blur(12px)
+}
+#missions h2{margin:0 0 10px;color:#ffe269;font-size:20px}
+.mi{font-size:12px;padding:4px 0}
+.mi.done{color:#67ff91;text-decoration:line-through}
+
+#crosshair{
+ position:fixed;z-index:110;left:50%;top:50%;
+ width:22px;height:22px;transform:translate(-50%,-50%);
+ pointer-events:none
+}
+#crosshair:before,#crosshair:after{
+ content:"";position:absolute;background:white;
+ box-shadow:0 0 4px black
+}
+#crosshair:before{width:22px;height:2px;top:10px}
+#crosshair:after{width:2px;height:22px;left:10px}
+
+#prompt{
+ position:fixed;z-index:120;left:50%;bottom:45px;
+ transform:translateX(-50%);
+ padding:12px 25px;border-radius:30px;
+ background:#071b15dd;color:white;
+ display:none;font-weight:bold
+}
+#toast{
+ position:fixed;z-index:130;left:50%;top:16%;
+ transform:translateX(-50%);
+ background:linear-gradient(135deg,#087e61,#0878c7);
+ color:white;padding:15px 25px;border-radius:17px;
+ display:none;text-align:center;font-weight:bold;
+ box-shadow:0 10px 35px #0008
+}
+#help{
+ position:fixed;z-index:100;left:15px;bottom:15px;
+ background:#071b15bb;color:white;
+ padding:9px 13px;border-radius:12px;font-size:11px
+}
+#flash{
+ position:fixed;z-index:200;inset:0;background:white;
+ display:none;pointer-events:none
+}
+#photoFrame{
+ position:fixed;z-index:115;inset:12% 18%;
+ border:4px solid white;border-radius:15px;
+ box-shadow:0 0 60px #fff5 inset;
+ display:none;pointer-events:none
+}
+
+@media(max-width:800px){
+ #hud{width:225px}
+ #missions{width:205px}
+ #missions .mi{font-size:10px}
+}
+</style>
+</head>
+
+<body>
+
+<!-- ================= HUD ================= -->
+
+<div id="hud">
+<h1>🦁 ZOO EXPLORER</h1>
+
+<div class="stat"><span>⭐ SCORE</span><b id="score">0</b></div>
+<div class="stat"><span>🐾 ANIMALS</span><b id="animalCount">0/8</b></div>
+<div class="stat"><span>🎯 MISSIONS</span><b id="missionCount">0/10</b></div>
+
+<div class="progress"><div id="scoreProgress"></div></div>
+
+<label>Visitor Speed: <b id="visitorValue">2.2</b></label>
+<input id="visitorSpeed" type="range" min="0" max="5" step=".1" value="2.2">
+
+<label>Animal Speed: <b id="animalValue">1.0</b></label>
+<input id="animalSpeed" type="range" min="0" max="3" step=".1" value="1">
+
+<div class="grid">
+<button id="feed">🍎 FEED</button>
+<button id="photo">📷 PHOTO</button>
+<button id="sound">🔊 SOUND</button>
+<button id="night">🌙 NIGHT</button>
+<button id="lights">💡 LIGHTS</button>
+<button id="staff">🚨 STAFF</button>
+<button id="pause">⏯ PAUSE</button>
+<button id="reset">🔄 RESET</button>
+<button id="stopPeople">🛑 STOP PEOPLE</button>
+<button id="resumePeople">🚶 RESUME PEOPLE</button>
+<button id="fullscreen">⛶ FULLSCREEN</button>
+</div>
+</div>
+
+<!-- ================= MISSIONS ================= -->
+
+<div id="missions">
+<h2>🎯 MISSIONS</h2>
+<div id="missionList"></div>
+</div>
+
+<div id="crosshair"></div>
+<div id="prompt"></div>
+<div id="toast"></div>
+<div id="photoFrame"></div>
+<div id="flash"></div>
+
+<div id="help">
+WASD เดิน · Mouse มอง · Shift วิ่ง · Space กระโดด · E สำรวจ · F ให้อาหาร · O ถ่ายรูป · M เสียง · P Pause · R Reset
+</div>
+
+<!-- ================= 3D SCENE ================= -->
+
+<a-scene
+ id="scene"
+ renderer="antialias:true;colorManagement:true;shadows:true"
+ fog="type:exponential;color:#b8e4d0;density:.009"
+ background="color:#8bd7f0">
+
+<a-assets timeout="3000">
+ <img id="reference" src="reference.png">
+</a-assets>
+
+<a-sky id="sky" color="#8bd7f0"></a-sky>
+
+<a-entity
+ light="type:ambient;color:#ffffff;intensity:1.5">
+</a-entity>
+
+<a-entity
+ id="sun"
+ light="type:directional;color:#fff2ce;intensity:2.2;castShadow:true"
+ position="-30 40 20">
+</a-entity>
+
+<!-- PLAYER -->
+
+<a-entity id="player" position="0 1.7 45" player-controls>
+ <a-camera
+   id="camera"
+   look-controls="pointerLockEnabled:true"
+   wasd-controls-enabled="false"
+   fov="75">
+ </a-camera>
+</a-entity>
+
+<a-entity id="world"></a-entity>
+
+</a-scene>
+
+<script>
+"use strict";
+
+/* =========================================================
+   GAME STATE
+========================================================= */
+
+const GAME={
+ score:0,
+ discovered:new Set(),
+ photos:0,
+ fed:false,
+ staff:false,
+ zones:new Set(),
+ paused:false,
+ sound:true,
+ night:false,
+ lights:false,
+ peopleMoving:true,
+ animalSpeed:1,
+ visitorSpeed:2.2,
+ feedCooldown:0,
+ master:false
+};
+
+const ANIMALS=[
+ {name:"Lion",emoji:"🦁",color:"#c98a32",x:-50,z:-25,zone:"Savanna"},
+ {name:"Elephant",emoji:"🐘",color:"#858b87",x:-20,z:-40,zone:"Elephant Valley"},
+ {name:"Giraffe",emoji:"🦒",color:"#e7ae38",x:15,z:-40,zone:"Giraffe Plains"},
+ {name:"Zebra",emoji:"🦓",color:"#eeeeee",x:48,z:-30,zone:"Zebra Field"},
+ {name:"Monkey",emoji:"🐒",color:"#8b572f",x:-48,z:8,zone:"Monkey Island"},
+ {name:"Crocodile",emoji:"🐊",color:"#3d8650",x:-5,z:17,zone:"Wetlands"},
+ {name:"Panda",emoji:"🐼",color:"#eeeeee",x:43,z:12,zone:"Bamboo Garden"},
+ {name:"Bird",emoji:"🦜",color:"#35aee0",x:5,z:-10,zone:"Aviary"}
+];
+
+const MISSION_NAMES=[
+ "พบ Lion",
+ "พบ Elephant",
+ "พบ Giraffe",
+ "พบ Zebra",
+ "พบ Monkey",
+ "พบสัตว์ครบ 8 ชนิด",
+ "ถ่ายรูปสัตว์ 3 ครั้ง",
+ "ให้อาหารสัตว์ 1 ครั้ง",
+ "สำรวจอย่างน้อย 3 โซน",
+ "เรียกเจ้าหน้าที่"
+];
+
+const world=document.querySelector("#world");
+const player=document.querySelector("#player");
+const camera=document.querySelector("#camera");
+
+/* =========================================================
+   BASIC HELPERS
+========================================================= */
+
+function add(tag,attrs={},parent=world){
+ const e=document.createElement(tag);
+
+ for(const key in attrs){
+  e.setAttribute(key,attrs[key]);
+ }
+
+ parent.appendChild(e);
+ return e;
+}
+
+function box(x,y,z,sx,sy,sz,color,parent=world){
+ return add("a-box",{
+  position:`${x} ${y} ${z}`,
+  width:sx,
+  height:sy,
+  depth:sz,
+  material:`color:${color};roughness:.8`,
+  shadow:"cast:true;receive:true"
+ },parent);
+}
+
+function cylinder(x,y,z,r,h,color,parent=world){
+ return add("a-cylinder",{
+  position:`${x} ${y} ${z}`,
+  radius:r,
+  height:h,
+  material:`color:${color};roughness:.8`,
+  shadow:"cast:true;receive:true"
+ },parent);
+}
+
+function sphere(x,y,z,r,color,parent=world){
+ return add("a-sphere",{
+  position:`${x} ${y} ${z}`,
+  radius:r,
+  material:`color:${color};roughness:.8`,
+  shadow:"cast:true;receive:true"
+ },parent);
+}
+
+function label(x,y,z,value,color="#fff",scale="2 2 2",parent=world){
+ return add("a-text",{
+  position:`${x} ${y} ${z}`,
+  value:value,
+  color:color,
+  align:"center",
+  side:"double",
+  scale:scale
+ },parent);
+}
+
+/* =========================================================
+   TOAST / SCORE
+========================================================= */
+
+let toastTimer;
+
+function toast(message,time=2200){
+ const t=document.querySelector("#toast");
+ t.innerHTML=message;
+ t.style.display="block";
+
+ clearTimeout(toastTimer);
+
+ toastTimer=setTimeout(()=>{
+  t.style.display="none";
+ },time);
+}
+
+function addScore(n){
+ GAME.score+=n;
+
+ document.querySelector("#score").textContent=GAME.score;
+
+ document.querySelector("#scoreProgress").style.width=
+ Math.min(100,GAME.score/5)+"%";
+}
+
+/* =========================================================
+   SOUND
+========================================================= */
+
+let audioContext=null;
+
+function beep(freq=600,duration=.08){
+ if(!GAME.sound)return;
+
+ try{
+  if(!audioContext){
+   audioContext=new(window.AudioContext||window.webkitAudioContext)();
+  }
+
+  const osc=audioContext.createOscillator();
+  const gain=audioContext.createGain();
+
+  osc.frequency.value=freq;
+  osc.type="sine";
+
+  gain.gain.value=.035;
+
+  osc.connect(gain);
+  gain.connect(audioContext.destination);
+
+  osc.start();
+  osc.stop(audioContext.currentTime+duration);
+ }catch(e){}
+}
+
+function toggleSound(){
+ GAME.sound=!GAME.sound;
+
+ document.querySelector("#sound").textContent=
+ GAME.sound?"🔊 SOUND":"🔇 MUTED";
+
+ if(GAME.sound)beep();
+}
+
+/* =========================================================
+   GROUND
+========================================================= */
+
+box(0,-.5,0,145,1,115,"#5ba45a");
+
+/* Main roads */
+
+box(0,-.02,0,11,.12,110,"#d9b66a");
+box(0,0,0,140,.12,8,"#d9b66a");
+
+/* Decorative paths */
+
+box(-40,.01,15,45,.08,5,"#cda967");
+box(40,.01,15,45,.08,5,"#cda967");
+
+/* =========================================================
+   TREES
+========================================================= */
+
+function tree(x,z,s=1){
+
+ const root=add("a-entity",{position:`${x} 0 ${z}`});
+
+ cylinder(0,2,0,.35*s,4*s,"#70431f",root);
+
+ const colors=["#23934d","#2eaa57","#3bbd63"];
+
+ for(let i=0;i<3;i++){
+
+  const leaf=sphere(
+   (i-1)*.65*s,
+   4.1+(i%2)*.65*s,
+   (i%2-.5)*.5*s,
+   1.35*s,
+   colors[i],
+   root
+  );
+
+  leaf.setAttribute(
+   "animation",
+   `property:rotation;
+    to:0 0 ${i%2?7:-7};
+    dir:alternate;
+    dur:${1800+i*300};
+    loop:true`
+  );
+ }
+}
+
+/* perimeter forest */
+
+for(let z=-50;z<=50;z+=8){
+ tree(-70,z,1.05);
+ tree(70,z,1.05);
+}
+
+for(let x=-65;x<=65;x+=10){
+ tree(x,-53,.9);
+ tree(x,53,1);
+}
+
+/* interior trees */
+
+for(let i=0;i<45;i++){
+
+ const x=-63+Math.random()*126;
+ const z=-48+Math.random()*96;
+
+ if(Math.abs(x)<9)continue;
+
+ tree(x,z,.45+Math.random()*.55);
+}
+
+/* =========================================================
+   LAMPS
+========================================================= */
+
+function lamp(x,z){
+
+ cylinder(x,2,z,.09,4,"#222");
+
+ sphere(x,4.2,z,.25,"#ffe99a");
+
+ add("a-light",{
+  class:"zooLight",
+  type:"point",
+  color:"#ffd879",
+  intensity:"0",
+  distance:"9",
+  position:`${x} 4.1 ${z}`
+ });
+}
+
+for(let z=-45;z<=45;z+=10){
+ lamp(-6,z);
+ lamp(6,z);
+}
+
+/* =========================================================
+   ENTRANCE
+========================================================= */
+
+box(0,4,52,30,8,1.2,"#167c58");
+
+label(
+ 0,6,51.2,
+ "🌿 WELCOME TO ZOO EXPLORER",
+ "#fff",
+ "4 4 4"
+);
+
+box(0,1.8,49.8,22,3.5,.3,"#d8a938");
+
+/* Reference image */
+
+const ref=add("a-plane",{
+ position:"0 4.5 49.5",
+ width:"12",
+ height:"5",
+ rotation:"0 180 0",
+ material:"src:#reference;shader:flat"
+});
+
+label(
+ 0,.9,49,
+ "REFERENCE PHOTO",
+ "#fff",
+ "2 2 2"
+);
+
+/* =========================================================
+   WATERFALL
+========================================================= */
+
+box(25,.05,27,24,.12,15,"#39b8dc");
+
+box(25,4.5,34,13,9,.5,"#727761");
+
+for(let i=0;i<15;i++){
+
+ const water=box(
+ 19+i*.85,
+ 4,
+ 33.6,
+ .28,
+ 7,
+ .12,
+ "#9befff"
+ );
+
+ water.setAttribute(
+  "animation",
+  `property:position;
+   to:${19+i*.85} .5 33.6;
+   dur:${700+i*50};
+   loop:true`
+ );
+}
+
+label(25,2,20,"💧 WATERFALL","#e8ffff","3 3 3");
+
+/* =========================================================
+   ZONE SIGNS
+========================================================= */
+
+function sign(x,z,title){
+
+ box(x,2,z,.2,4,.2,"#63472a");
+
+ box(x,3.7,z,10,2,.35,"#176e55");
+
+ label(
+  x,3.7,z-.25,
+  title,
+  "#fff",
+  "2.5 2.5 2.5"
+ );
+}
+
+sign(-50,-16,"🦁 SAVANNA");
+sign(-20,-31,"🐘 ELEPHANT");
+sign(15,-31,"🦒 GIRAFFE");
+sign(48,-21,"🦓 ZEBRA");
+sign(-48,0,"🐒 MONKEY");
+sign(-5,9,"🐊 WETLANDS");
+sign(43,5,"🐼 PANDA");
+sign(5,-4,"🦜 AVIARY");
+
+/* =========================================================
+   FENCES
+========================================================= */
+
+function fence(x,z,w,d){
+
+ const color="#65472a";
+
+ for(let i=-w/2;i<=w/2;i+=2){
+  cylinder(x+i,1,z,.07,2,color);
+  cylinder(x+i,1,z+d,.07,2,color);
+ }
+
+ for(let i=0;i<=d;i+=2){
+  cylinder(x-w/2,1,z+i,.07,2,color);
+  cylinder(x+w/2,1,z+i,.07,2,color);
+ }
+
+ box(x,1,z,w,0.12,.12,color);
+ box(x,1,z+d,w,0.12,.12,color);
+ box(x-w/2,1,z+d/2,.12,.12,d,color);
+ box(x+w/2,1,z+d/2,.12,.12,d,color);
+}
+
+/* =========================================================
+   ANIMAL MODEL
+========================================================= */
+
+const animalEntities=[];
+
+function createAnimal(data){
+
+ const root=add("a-entity",{
+  position:`${data.x} 1 ${data.z}`
+ });
+
+ root.classList.add("animal");
+
+ root.dataset.name=data.name;
+ root.dataset.zone=data.zone;
+ root.dataset.homeX=data.x;
+ root.dataset.homeZ=data.z;
+
+ root.dataset.vx=Math.random()>.5?1:-1;
+ root.dataset.vz=Math.random()>.5?1:-1;
+
+ /* body */
+
+ const body=sphere(0,.7,0,1,data.color,root);
+
+ if(data.name==="Giraffe"){
+  body.setAttribute("scale",".85 1.8 .7");
+
+  cylinder(
+   0,2.4,0,
+   .3,
+   2.8,
+   data.color,
+   root
+  );
+ }
+
+ if(data.name==="Elephant"){
+  body.setAttribute("scale","1.5 1.15 1.25");
+
+  cylinder(
+   0,.5,-1,
+   .2,
+   1.4,
+   "#777",
+   root
+  ).setAttribute("rotation","-35 0 0");
+ }
+
+ if(data.name==="Crocodile"){
+  body.setAttribute("scale","2 .5 .65");
+ }
+
+ if(data.name==="Bird"){
+  body.setAttribute("scale",".7 .7 1");
+  root.object3D.position.y=4;
+ }
+
+ /* head */
+
+ sphere(0,1.65,-.65,.55,data.color,root);
+
+ /* eyes */
+
+ sphere(-.2,1.8,-1.08,.07,"#111",root);
+ sphere(.2,1.8,-1.08,.07,"#111",root);
+
+ /* label */
+
+ label(
+ 0,
+ data.name==="Giraffe"?4.8:2.7,
+ 0,
+ `${data.emoji} ${data.name}`,
+ "#fff",
+ "1.4 1.4 1.4",
+ root
+ );
+
+ /* walking animation */
+
+ root.setAttribute(
+  "animation__bob",
+  "property:rotation;to:0 5 0;dir:alternate;dur:900;loop:true"
+ );
+
+ /* enclosure */
+
+ fence(data.x-8,data.z-6,16,12);
+
+ animalEntities.push(root);
+
+ return root;
+}
+
+ANIMALS.forEach(createAnimal);
+
+/* =========================================================
+   SPECIAL POINTS
+========================================================= */
+
+function kiosk(x,z,title,color){
+
+ box(x,2,z,7,4,.6,color);
+
+ label(
+  x,3,z-.35,
+  title,
+  "#fff",
+  "2 2 2"
+ );
+}
+
+kiosk(-28,25,"🍎 FEEDING","#bf6d32");
+kiosk(30,25,"📷 PHOTO","#7947a8");
+kiosk(55,27,"ℹ INFO","#2774a7");
+
+/* benches */
+
+function bench(x,z){
+
+ box(x,.9,z,3,.2,.5,"#875127");
+ box(x,.45,z,2.8,.7,.15,"#68401f");
+}
+
+bench(-15,28);
+bench(15,29);
+bench(55,7);
+bench(-30,2);
+
+/* =========================================================
+   NPC PEOPLE
+========================================================= */
+
+const people=[];
+
+for(let i=0;i<20;i++){
+
+ const p=add("a-entity",{
+  position:`${-60+Math.random()*120} .8 ${-48+Math.random()*90}`
+ });
+
+ p.classList.add("visitor");
+
+ p.dataset.tx=-60+Math.random()*120;
+ p.dataset.tz=-48+Math.random()*90;
+
+ cylinder(
+ 0,0,0,
+ .3,
+ 1.15,
+ ["#e74c3c","#3498db","#f1c40f","#9b59b6","#1abc9c"][i%5],
+ p
+ );
+
+ sphere(0,.8,0,.28,"#e4b184",p);
+
+ cylinder(
+ 0,1.05,0,
+ .34,
+ .12,
+ "#eeeeee",
+ p
+ );
+
+ p.setAttribute(
+  "animation",
+  "property:rotation;to:0 8 0;dir:alternate;dur:500;loop:true"
+ );
+
+ people.push(p);
+}
+
+/* =========================================================
+   STAFF
+========================================================= */
+
+const staff=add("a-entity",{position:"2 1 27"});
+
+cylinder(0,0,0,.35,1.2,"#1760a0",staff);
+sphere(0,.8,0,.28,"#e5b487",staff);
+label(0,1.7,0,"👮 STAFF","#fff","1.2 1.2 1.2",staff);
+
+/* =========================================================
+   MISSIONS
+========================================================= */
+
+function missionState(){
+
+ return [
+  GAME.discovered.has("Lion"),
+  GAME.discovered.has("Elephant"),
+  GAME.discovered.has("Giraffe"),
+  GAME.discovered.has("Zebra"),
+  GAME.discovered.has("Monkey"),
+  GAME.discovered.size===8,
+  GAME.photos>=3,
+  GAME.fed,
+  GAME.zones.size>=3,
+  GAME.staff
+ ];
+}
+
+function updateMissions(){
+
+ const states=missionState();
+
+ document.querySelector("#missionList").innerHTML=
+ states.map((done,i)=>
+ `<div class="mi ${done?"done":""}">
+ ${done?"✓":"○"} ${MISSION_NAMES[i]}
+ </div>`
+ ).join("");
+
+ const complete=states.filter(Boolean).length;
+
+ document.querySelector("#missionCount").textContent=
+ `${complete}/10`;
+
+ if(complete===10 && !GAME.master){
+
+  GAME.master=true;
+
+  addScore(25);
+
+  toast(
+   "🏆 ZOO MASTER<br>คุณสำรวจสวนสัตว์ครบแล้ว!<br>+25 XP",
+   5000
+  );
+ }
+}
+
+/* =========================================================
+   NEAREST ANIMAL
+========================================================= */
+
+function nearestAnimal(){
+
+ let best=null;
+ let bestDistance=999;
+
+ const pp=player.object3D.position;
+
+ for(const animal of animalEntities){
+
+  const p=animal.object3D.position;
+
+  const d=Math.hypot(
+   p.x-pp.x,
+   p.z-pp.z
+  );
+
+  if(d<bestDistance){
+   bestDistance=d;
+   best=animal;
+  }
+ }
+
+ return bestDistance<=7?best:null;
+}
+
+/* =========================================================
+   DISCOVER
+========================================================= */
+
+function discover(animal){
+
+ if(!animal)return;
+
+ const name=animal.dataset.name;
+
+ if(!GAME.discovered.has(name)){
+
+  GAME.discovered.add(name);
+
+  addScore(10);
+
+  toast(
+   `🐾 DISCOVERED!<br>${name}<br>+10 XP`
+  );
+
+  beep(750,.12);
+ }
+
+ GAME.zones.add(animal.dataset.zone);
+
+ document.querySelector("#animalCount").textContent=
+ `${GAME.discovered.size}/8`;
+
+ updateMissions();
+}
+
+/* =========================================================
+   INTERACTION
+========================================================= */
+
+function interact(){
+
+ const animal=nearestAnimal();
+
+ if(!animal){
+  toast("ไม่มีสัตว์อยู่ใกล้");
+  return;
+ }
+
+ discover(animal);
+
+ /* turn toward player */
+
+ const p=player.object3D.position;
+ const a=animal.object3D.position;
+
+ animal.object3D.rotation.y=
+ Math.atan2(
+  p.x-a.x,
+  p.z-a.z
+ );
+
+ animal.setAttribute(
+  "animation__react",
+  "property:scale;to:1.2 1.2 1.2;dir:alternate;dur:250;loop:4"
+ );
+
+ toast(
+  `ℹ️ ${animal.dataset.name}<br>${animal.dataset.zone}`
+ );
+}
+
+/* =========================================================
+   FEED
+========================================================= */
+
+function feedAnimal(){
+
+ const animal=nearestAnimal();
+
+ if(!animal){
+  toast("🍎 เข้าใกล้สัตว์ไม่เกิน 7 เมตร");
+  return;
+ }
+
+ const now=performance.now();
+
+ if(now<GAME.feedCooldown){
+
+  toast(
+   `⏳ กรุณารอ ${Math.ceil((GAME.feedCooldown-now)/1000)} วินาที`
+  );
+
+  return;
+ }
+
+ GAME.feedCooldown=now+10000;
+ GAME.fed=true;
+
+ discover(animal);
+
+ addScore(20);
+
+ const food=sphere(
+  player.object3D.position.x,
+  1,
+  player.object3D.position.z,
+  .25,
+  "#ff3d42"
+ );
+
+ const target=animal.object3D.position;
+
+ food.setAttribute(
+  "animation",
+  `property:position;
+   to:${target.x} 1 ${target.z};
+   dur:900;
+   easing:easeInOutQuad`
+ );
+
+ animal.setAttribute(
+  "animation__eat",
+  "property:rotation;to:0 360 0;dur:1000;loop:2"
+ );
+
+ setTimeout(()=>{
+  if(food.parentNode)food.parentNode.removeChild(food);
+ },1200);
+
+ toast("🍎 ANIMAL FED!<br>+20 XP");
+
+ beep(900,.15);
+
+ updateMissions();
+}
+
+/* =========================================================
+   PHOTO
+========================================================= */
+
+function takePhoto(){
+
+ const animal=nearestAnimal();
+
+ if(!animal){
+
+  toast("📷 ต้องมีสัตว์อยู่ใกล้ 7 เมตร");
+  return;
+ }
+
+ discover(animal);
+
+ GAME.photos++;
+
+ addScore(10);
+
+ document.querySelector("#photoFrame").style.display="block";
+
+ document.querySelector("#flash").style.display="block";
+
+ setTimeout(()=>{
+  document.querySelector("#flash").style.display="none";
+ },120);
+
+ setTimeout(()=>{
+  document.querySelector("#photoFrame").style.display="none";
+ },900);
+
+ toast("📷 PHOTO CAPTURED!<br>+10 XP");
+
+ beep(1100,.1);
+
+ updateMissions();
+}
+
+/* =========================================================
+   NIGHT
+========================================================= */
+
+function nightMode(){
+
+ GAME.night=!GAME.night;
+
+ const sky=document.querySelector("#sky");
+ const sun=document.querySelector("#sun");
+
+ if(GAME.night){
+
+  sky.setAttribute("color","#071735");
+
+  document.querySelector("#scene")
+   .setAttribute(
+    "fog",
+    "type:exponential;color:#0d1733;density:.015"
+   );
+
+  sun.setAttribute("light","intensity:.25");
+
+  document.querySelectorAll(".zooLight")
+   .forEach(light=>{
+    light.setAttribute(
+     "light",
+     "type:point;color:#ffd879;intensity:1.8;distance:9"
+    );
+   });
+
+  document.querySelector("#night").textContent="☀️ DAY";
+
+ }else{
+
+  sky.setAttribute("color","#8bd7f0");
+
+  document.querySelector("#scene")
+   .setAttribute(
+    "fog",
+    "type:exponential;color:#b8e4d0;density:.009"
+   );
+
+  sun.setAttribute("light","intensity:2.2");
+
+  document.querySelectorAll(".zooLight")
+   .forEach(light=>{
+    light.setAttribute(
+     "light",
+     "type:point;color:#ffd879;intensity:0;distance:9"
+    );
+   });
+
+  document.querySelector("#night").textContent="🌙 NIGHT";
+ }
+
+ beep(450,.1);
+}
+
+/* =========================================================
+   LIGHTS
+========================================================= */
+
+function toggleLights(){
+
+ GAME.lights=!GAME.lights;
+
+ document.querySelectorAll(".zooLight")
+ .forEach(light=>{
+
+  light.setAttribute(
+   "light",
+   `type:point;
+    color:#ffd879;
+    intensity:${GAME.lights?(GAME.night?1.8:0):0};
+    distance:9`
+  );
+ });
+}
+
+/* =========================================================
+   PEOPLE
+========================================================= */
+
+function updatePeople(dt){
+
+ if(GAME.paused||!GAME.peopleMoving)return;
+
+ for(const p of people){
+
+  const pos=p.object3D.position;
+
+  let dx=parseFloat(p.dataset.tx)-pos.x;
+  let dz=parseFloat(p.dataset.tz)-pos.z;
+
+  const distance=Math.hypot(dx,dz);
+
+  if(distance<2){
+
+   p.dataset.tx=-60+Math.random()*120;
+   p.dataset.tz=-48+Math.random()*90;
+
+   continue;
+  }
+
+  dx/=distance;
+  dz/=distance;
+
+  const speed=GAME.visitorSpeed*.45;
+
+  pos.x+=dx*speed*dt/1000;
+  pos.z+=dz*speed*dt/1000;
+
+  p.object3D.rotation.y=Math.atan2(dx,dz);
+ }
+}
+
+/* =========================================================
+   ANIMALS
+========================================================= */
+
+function updateAnimals(dt){
+
+ if(GAME.paused)return;
+
+ for(const a of animalEntities){
+
+  const pos=a.object3D.position;
+
+  let vx=parseFloat(a.dataset.vx);
+  let vz=parseFloat(a.dataset.vz);
+
+  const hx=parseFloat(a.dataset.homeX);
+  const hz=parseFloat(a.dataset.homeZ);
+
+  const speed=GAME.animalSpeed*.7;
+
+  pos.x+=vx*speed*dt/1000;
+  pos.z+=vz*speed*dt/1000;
+
+  if(Math.abs(pos.x-hx)>7){
+   vx=-Math.sign(pos.x-hx);
+  }
+
+  if(Math.abs(pos.z-hz)>5){
+   vz=-Math.sign(pos.z-hz);
+  }
+
+  a.dataset.vx=vx;
+  a.dataset.vz=vz;
+
+  a.object3D.rotation.y=Math.atan2(vx,vz);
+
+  /* walking bob */
+
+  const bob=Math.sin(performance.now()/150)*.025;
+
+  if(a.dataset.name==="Bird"){
+   pos.y=4+Math.sin(performance.now()/400)*.7;
+  }else{
+   pos.y=1+bob;
+  }
+ }
+}
+
+/* =========================================================
+   PLAYER CONTROLLER
+========================================================= */
+
+AFRAME.registerComponent("player-controls",{
+
+ init:function(){
+
+  this.keys={};
+  this.velocityY=0;
+  this.grounded=true;
+
+  window.addEventListener("keydown",e=>{
+
+   this.keys[e.code]=true;
+
+   if(e.code==="KeyE")interact();
+   if(e.code==="KeyF")feedAnimal();
+   if(e.code==="KeyO")takePhoto();
+   if(e.code==="KeyM")toggleSound();
+   if(e.code==="KeyP")togglePause();
+   if(e.code==="KeyR")resetPlayer();
+
+   if(
+    e.code==="Space" &&
+    this.grounded &&
+    !GAME.paused
+   ){
+    this.velocityY=5.5;
+    this.grounded=false;
+   }
+
+  });
+
+  window.addEventListener("keyup",e=>{
+   this.keys[e.code]=false;
+  });
+ },
+
+ tick:function(time,delta){
+
+  if(GAME.paused)return;
+
+  const dt=Math.min(delta,50)/1000;
+
+  const k=this.keys;
+
+  let x=0;
+  let z=0;
+
+  if(k.KeyW)z-=1;
+  if(k.KeyS)z+=1;
+  if(k.KeyA)x-=1;
+  if(k.KeyD)x+=1;
+
+  const length=Math.hypot(x,z);
+
+  if(length>0){
+   x/=length;
+   z/=length;
+  }
+
+  const cameraObject=camera.object3D;
+
+  const forward=new THREE.Vector3();
+  cameraObject.getWorldDirection(forward);
+
+  forward.y=0;
+  forward.normalize();
+
+  const right=new THREE.Vector3();
+  right.crossVectors(
+   forward,
+   new THREE.Vector3(0,1,0)
+  ).normalize();
+
+  const movement=new THREE.Vector3();
+
+  movement.addScaledVector(forward,-z);
+  movement.addScaledVector(right,x);
+
+  if(movement.length()>0){
+   movement.normalize();
+
+   const speed=
+    (k.ShiftLeft||k.ShiftRight)?6:2.6;
+
+   this.el.object3D.position.x+=
+    movement.x*speed*dt;
+
+   this.el.object3D.position.z+=
+    movement.z*speed*dt;
+  }
+
+  /* gravity */
+
+  if(!this.grounded){
+
+   this.velocityY-=12*dt;
+
+   this.el.object3D.position.y+=
+    this.velocityY*dt;
+
+   if(this.el.object3D.position.y<=1.7){
+
+    this.el.object3D.position.y=1.7;
+    this.velocityY=0;
+    this.grounded=true;
+   }
+  }
+
+  /* boundaries */
+
+  this.el.object3D.position.x=
+   Math.max(-67,Math.min(67,
+    this.el.object3D.position.x
+   ));
+
+  this.el.object3D.position.z=
+   Math.max(-51,Math.min(48,
+    this.el.object3D.position.z
+   ));
+ }
+});
+
+/* =========================================================
+   PROMPT / ZONES
+========================================================= */
+
+function updatePrompt(){
+
+ const animal=nearestAnimal();
+
+ const p=document.querySelector("#prompt");
+
+ if(animal&&!GAME.paused){
+
+  p.style.display="block";
+
+  p.innerHTML=
+   `กด <b>E</b> เพื่อโต้ตอบกับ ${animal.dataset.name}`;
+
+ }else{
+
+  p.style.display="none";
+ }
+
+ /* central exploration */
+
+ const pp=player.object3D.position;
+
+ if(Math.abs(pp.x)<12&&Math.abs(pp.z)<12){
+  GAME.zones.add("Central");
+ }
+
+ updateMissions();
+}
+
+/* =========================================================
+   PAUSE
+========================================================= */
+
+function togglePause(){
+
+ GAME.paused=!GAME.paused;
+
+ document.querySelector("#pause").textContent=
+  GAME.paused?"▶ RESUME":"⏯ PAUSE";
+
+ toast(
+  GAME.paused?"⏸ GAME PAUSED":"▶ GAME RESUMED",
+  1000
+ );
+}
+
+/* =========================================================
+   RESET
+========================================================= */
+
+function resetPlayer(){
+
+ player.object3D.position.set(0,1.7,45);
+
+ camera.object3D.rotation.set(0,0,0);
+
+ toast("🔄 POSITION RESET",1000);
+}
+
+/* =========================================================
+   STAFF
+========================================================= */
+
+function callStaff(){
+
+ GAME.staff=true;
+
+ addScore(5);
+
+ staff.object3D.rotation.y=Math.PI;
+
+ toast(
+  "🚨 STAFF CALLED!<br>เจ้าหน้าที่กำลังมา<br>+5 XP"
+ );
+
+ updateMissions();
+}
+
+/* =========================================================
+   BUTTON EVENTS
+========================================================= */
+
+document.querySelector("#feed").onclick=feedAnimal;
+document.querySelector("#photo").onclick=takePhoto;
+document.querySelector("#sound").onclick=toggleSound;
+document.querySelector("#night").onclick=nightMode;
+document.querySelector("#lights").onclick=toggleLights;
+document.querySelector("#pause").onclick=togglePause;
+document.querySelector("#reset").onclick=resetPlayer;
+document.querySelector("#staff").onclick=callStaff;
+
+document.querySelector("#stopPeople").onclick=()=>{
+ GAME.peopleMoving=false;
+ toast("🛑 PEOPLE STOPPED",1000);
+};
+
+document.querySelector("#resumePeople").onclick=()=>{
+ GAME.peopleMoving=true;
+ toast("🚶 PEOPLE RESUMED",1000);
+};
+
+document.querySelector("#fullscreen").onclick=()=>{
+ if(document.documentElement.requestFullscreen){
+  document.documentElement.requestFullscreen();
+ }
+};
+
+document.querySelector("#visitorSpeed").oninput=e=>{
+
+ GAME.visitorSpeed=parseFloat(e.target.value);
+
+ document.querySelector("#visitorValue").textContent=
+  GAME.visitorSpeed.toFixed(1);
+};
+
+document.querySelector("#animalSpeed").oninput=e=>{
+
+ GAME.animalSpeed=parseFloat(e.target.value);
+
+ document.querySelector("#animalValue").textContent=
+  GAME.animalSpeed.toFixed(1);
+};
+
+/* =========================================================
+   MAIN LOOP
+========================================================= */
+
+let previous=performance.now();
+
+function gameLoop(now){
+
+ const dt=Math.min(
+  50,
+  now-previous
+ );
+
+ previous=now;
+
+ updateAnimals(dt);
+ updatePeople(dt);
+ updatePrompt();
+
+ requestAnimationFrame(gameLoop);
+}
+
+updateMissions();
+
+requestAnimationFrame(gameLoop);
+
+/* =========================================================
+   START MESSAGE
+========================================================= */
+
+setTimeout(()=>{
+
+ toast(
+  "🦁 WELCOME TO ZOO EXPLORER!<br>คลิกกลางจอเพื่อเริ่มสำรวจ",
+  3500
+ );
+
+},1200);
+
+/* =========================================================
+   KEY PREVENT SCROLL
+========================================================= */
+
+window.addEventListener("keydown",e=>{
+
+ if([
+  "Space",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight"
+ ].includes(e.code)){
+
+  e.preventDefault();
+ }
+});
+
+</script>
+
+</body>
+</html>
